@@ -73,6 +73,8 @@ export interface ConnectHandshakeResult {
   macAddress?: string;
   securityFacts: SecurityFact[];
   flashSize?: string | null;
+  flashId?: number | null;
+  isFlashUnresponsive: boolean;
 }
 
 export interface EsptoolClient {
@@ -348,6 +350,20 @@ export function createEsptoolClient({
         transport.baudrate = desiredBaud;
       }
 
+      let detectedFlashId: number | null = null;
+      let isFlashUnresponsive = false;
+      try {
+        detectedFlashId = await loader.flashId();
+        if (detectedFlashId !== null) {
+          const manuf = detectedFlashId & 0xFF;
+          if (detectedFlashId === 0xFFFFFF || detectedFlashId === 0 || manuf === 0xFF || manuf === 0x00) {
+            isFlashUnresponsive = true;
+          }
+        }
+      } catch (e) {
+        isFlashUnresponsive = true;
+      }
+
       let securityInfo = undefined;
       let securityFacts: SecurityFact[] = [];
       let chipId: number | undefined = undefined;
@@ -370,6 +386,8 @@ export function createEsptoolClient({
         macAddress,
         securityFacts,
         flashSize: loader.flashSize,
+        flashId: detectedFlashId,
+        isFlashUnresponsive,
       };
       return result;
     });

@@ -6111,7 +6111,7 @@ async function connect() {
     const featuresRaw = metadata.features;
     const crystalFreq = metadata.crystalFreq;
 
-    connectDialog.message = t('dialogs.readingFlashSize');
+connectDialog.message = t('dialogs.readingFlashSize');
     const flashLabel = esp.flashSize;
     appendLog(
       `Chip detectFlashSize: ${flashLabel === null ? 'undefined' : flashLabel}`,
@@ -6121,12 +6121,11 @@ async function connect() {
     let flashId: number | null = null;
     let id: number | null = null;
     try {
-      const detectedFlashId = await runLoaderOperation(() => client.loader.flashId());
-      flashId = detectedFlashId;
-      id = Number.isFinite(detectedFlashId) ? detectedFlashId : null;
+      flashId = esp.flashId ?? null;
+      id = (flashId != null && Number.isFinite(flashId)) ? flashId : null;
     } catch (error) {
       appendLog(
-        `Warning: unable to read flash ID (${formatErrorMessage(error)}).`,
+        `Warning: unable to process flash ID (${formatErrorMessage(error)}).`,
         '[ESPConnect-Warn]'
       );
     }
@@ -6280,21 +6279,28 @@ async function connect() {
     }
 
     connectDialog.message = t('dialogs.readingPartitionTable');
-    if (esp.chipName?.includes('ESP8266')) {
-      appendLog('Skipping partition table read for ESP8266 (not supported).', '[ESPConnect-Debug]');
+    if (esp.isFlashUnresponsive) {
+      appendLog('Flash chip is unresponsive. Skipping partition table scan.', '[ESPConnect-Warn]');
       partitionTable.value = [];
-      appMetadataLoaded.value = false;
-    } else if (loader.value) {
-      const loaderInstance = loader.value;
-      const detectedOffset = await runLoaderOperation(() => probePartitionTableOffset(loaderInstance, appendLog));
-      const partitionOffset = detectedOffset ?? 0x8000;
-      partitionTableOffset.value = partitionOffset;
-      const partitions = await runLoaderOperation(() => readPartitionTable(loaderInstance, partitionOffset, undefined, appendLog));
-      partitionTable.value = partitions;
       appMetadataLoaded.value = false;
     } else {
-      partitionTable.value = [];
-      appMetadataLoaded.value = false;
+      connectDialog.message = t('dialogs.readingPartitionTable');
+      if (esp.chipName?.includes('ESP8266')) {
+        appendLog('Skipping partition table read for ESP8266 (not supported).', '[ESPConnect-Debug]');
+        partitionTable.value = [];
+        appMetadataLoaded.value = false;
+      } else if (loader.value) {
+        const loaderInstance = loader.value;
+        const detectedOffset = await runLoaderOperation(() => probePartitionTableOffset(loaderInstance, appendLog));
+        const partitionOffset = detectedOffset ?? 0x8000;
+        partitionTableOffset.value = partitionOffset;
+        const partitions = await runLoaderOperation(() => readPartitionTable(loaderInstance, partitionOffset, undefined, appendLog));
+        partitionTable.value = partitions;
+        appMetadataLoaded.value = false;
+      } else {
+        partitionTable.value = [];
+        appMetadataLoaded.value = false;
+      }
     }
 
     if (usbBridge) {
